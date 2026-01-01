@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 import { env } from "bun";
 import { initializeDatabase } from "./db";
-import { saveHistory, getRecentHistory } from "./history";
+import { saveHistory, getRecentHistory, clearHistory } from "./history";
+import pkg from "./package.json";
 
 // Perplexity API configuration
 const PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions";
@@ -193,12 +194,54 @@ async function runRequest(
   }
 }
 
+function printHelp() {
+  console.log(`
+Perplexity CLI - AI Search & Research v${pkg.version}
+
+Usage:
+  pplx <command> [options] [query]
+
+Commands:
+  search <query>          Search the web
+  research <topic>        Deep research
+  academic <query>        Search academic sources
+  ask <question>          Ask a general question
+  code <question>         Get coding help
+  history                 View recent queries
+  clear-history           Clear all history
+  help                    Show this help message
+
+Options:
+  -v, --version           Show version number
+  -h, --help              Show this help message
+  --model <model>         Select model (sonar, sonar-pro, sonar-deep, sonar-reasoning)
+  --recent <filter>       Filter by recency (day, week, month, year)
+
+Examples:
+  pplx search "latest ai news" --recent week
+  pplx research "quantum computing advances" --model sonar-deep
+  pplx code "how to center a div"
+`);
+}
+
 async function main() {
   // Initialize the database
   initializeDatabase();
 
   const args = process.argv.slice(2);
   const apiKey = env.PERPLEXITY_API_KEY || process.env.PERPLEXITY_API_KEY;
+
+  // Check for version flag
+  if (args.includes("-v") || args.includes("--version")) {
+    console.log(`pplx-cli v${pkg.version}`);
+    process.exit(0);
+  }
+
+  // Check for help flag
+  if (args.includes("-h") || args.includes("--help")) {
+    printHelp();
+    process.exit(0);
+  }
 
   if (!apiKey) {
     console.error("❌ Error: PERPLEXITY_API_KEY environment variable not set.");
@@ -209,21 +252,7 @@ async function main() {
   }
 
   if (args.length === 0) {
-    console.log(`
-Perplexity CLI - AI Search & Research
-
-Usage:
-  pplx search <query>     Search the web
-  pplx research <topic>   Deep research
-  pplx academic <query>   Search academic sources
-  pplx ask <question>     Ask a general question
-  pplx code <question>    Get coding help
-  pplx history            View recent queries
-
-Options:
-  --model <sonar|sonar-pro|sonar-deep|sonar-reasoning>
-  --recent <day|week|month|year>
-`);
+    printHelp();
     process.exit(0);
   }
 
@@ -243,6 +272,7 @@ Options:
       "code",
       "help",
       "history",
+      "clear-history",
     ].includes(command)
   ) {
     // Re-parse including the first arg as part of the query
@@ -271,21 +301,7 @@ Options:
   }
 
   if (command === "help") {
-    console.log(`
-Perplexity CLI - AI Search & Research
-
-Usage:
-  pplx search <query>     Search the web
-  pplx research <topic>   Deep research
-  pplx academic <query>   Search academic sources
-  pplx ask <question>     Ask a general question
-  pplx code <question>    Get coding help
-  pplx history            View recent queries
-
-Options:
-  --model <sonar|sonar-pro|sonar-deep|sonar-reasoning>
-  --recent <day|week|month|year>
-`);
+    printHelp();
     return;
   }
 
@@ -308,6 +324,29 @@ Options:
       );
       console.log();
     }
+    return;
+  }
+
+  if (command === "clear-history") {
+    const readline = await import("readline");
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    rl.question(
+      "⚠️  Are you sure you want to clear all history? (y/N) ",
+      async (answer) => {
+        if (answer.toLowerCase() === "y" || answer.toLowerCase() === "yes") {
+          await clearHistory();
+          console.log("🗑️  History cleared.");
+        } else {
+          console.log("❌ Operation cancelled.");
+        }
+        rl.close();
+        process.exit(0); // Exit after readline close
+      },
+    );
     return;
   }
 

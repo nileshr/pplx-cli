@@ -1,7 +1,7 @@
 import { db, getHistoryDir } from "../db";
 import { history, type NewHistoryEntry, type HistoryEntry } from "../db/schema";
 import { desc, like } from "drizzle-orm";
-import { writeFileSync } from "fs";
+import { writeFileSync, readdirSync, unlinkSync, rmSync } from "fs";
 import { join } from "path";
 
 interface SaveHistoryParams {
@@ -142,4 +142,25 @@ export async function searchHistory(
  */
 export async function getAllHistory(): Promise<HistoryEntry[]> {
   return db.select().from(history).orderBy(desc(history.timestamp));
+}
+
+/**
+ * Clear all history entries and files
+ */
+export async function clearHistory(): Promise<void> {
+  // Clear database
+  await db.delete(history);
+
+  // Clear files
+  const historyDir = getHistoryDir();
+  try {
+    const files = readdirSync(historyDir);
+    for (const file of files) {
+      if (file.endsWith(".md")) {
+        unlinkSync(join(historyDir, file));
+      }
+    }
+  } catch (error) {
+    console.error("Failed to clear history files:", error);
+  }
 }

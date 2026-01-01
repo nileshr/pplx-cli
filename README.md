@@ -34,11 +34,22 @@ Interact with Perplexity's advanced AI models directly from your terminal for we
    ```
 
 3. **Configure your API Key**:
-   Set the `PERPLEXITY_API_KEY` environment variable. You can do this temporarily in your shell or add it to your profile (`.zshrc`, `.bashrc`, etc.).
+
+   **Option A**: Add to your shell profile (`.zshrc`, `.bash_profile`, etc.):
 
    ```bash
+   # Add to ~/.zshrc
    export PERPLEXITY_API_KEY="pplx-xxxxxxxxxxxxxxxxxxxxxxxx"
+   source ~/.zshrc
    ```
+
+   **Option B**: Create a `.env` file in the data directory (fallback):
+
+   ```bash
+   echo 'PERPLEXITY_API_KEY=pplx-xxxxxxxxxxxxxxxxxxxxxxxx' > ~/.pplx-cli/.env
+   ```
+
+   The CLI checks the shell environment first, then falls back to `~/.pplx-cli/.env`.
 
 ## Build Standalone Binary
 
