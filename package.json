@@ -15,6 +15,7 @@
     "drizzle-orm": "^0.45.1"
   },
   "scripts": {
-    "build": "bun build ./index.ts --compile --outfile pplx"
+    "build": "bun build ./index.ts --compile --outfile pplx",
+    "release": "bun run build && sudo cp pplx /usr/local/bin/"
   }
 }
