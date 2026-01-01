@@ -1,8 +1,8 @@
 # pplx-cli
 
-A powerful Command Line Interface (CLI) for Perplexity AI, built with [Bun](https://bun.sh).
+A simple and powerful Command Line Interface (CLI) for the Perplexity API, built with [Bun](https://bun.sh).
 
-Interact with Perplexity's advanced AI models directly from your terminal for web searches, deep research, academic queries, and coding assistance.
+Designed to be easily invoked by both humans and AI agents, `pplx-cli` allows you to access Perplexity's advanced AI models directly from your terminal or scripts for web searches, deep research, academic queries, and coding assistance.
 
 ## Features
 
@@ -13,6 +13,42 @@ Interact with Perplexity's advanced AI models directly from your terminal for we
 - 📜 **History**: Local history tracking of all your queries.
 - ⚡ **Fast**: Built on the ultra-fast Bun runtime with SQLite integration.
 - 🛠 **Customizable**: Support for different models (`sonar`, `sonar-pro`, etc.) and recency filters.
+- 🤖 **Agent-Ready**: Output is formatted for easy parsing, making it an ideal tool for AI agents.
+
+## Agent Integration
+
+If you are using this CLI within an AI agent ecosystem (like a coding assistant or an autonomous agent), you can provide the following instructions to help the agent utilize `pplx-cli` effectively.
+
+### Example `AGENTS.md`
+
+Create an `AGENTS.md` file in your project root with content similar to this:
+
+\`\`\`markdown
+# Perplexity CLI (pplx) Tool Instructions
+
+This project includes the \`pplx\` CLI tool for performing web searches and deep research.
+
+## Capability
+The \`pplx\` tool allows you to search the web, perform deep research, and find code examples using the Perplexity API.
+
+## Usage
+Execute the tool using the command line:
+
+\`\`\`bash
+pplx <command> "<query>"
+\`\`\`
+
+## Commands
+- \`pplx search "query"\`: Standard web search. Use for quick answers and general info.
+- \`pplx research "query"\`: Deep research. Use for complex topics requiring reasoning and comprehensive details.
+- \`pplx code "query"\`: Code search. Use for finding libraries, syntax, or debugging help.
+- \`pplx academic "query"\`: Academic search. Use for finding papers and scholarly articles.
+
+## Best Practices for Agents
+1. **Prefer \`research\`**: When asked to "investigate", "research", or "find out details" about a broad topic, always use the \`research\` command.
+2. **Use Quotes**: Always wrap your query in double quotes.
+3. **Check Output**: The tool writes the full answer to stdout. You can capture this output to answer the user's question.
+\`\`\`
 
 ## Prerequisites
 
