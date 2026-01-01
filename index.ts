@@ -1,5 +1,7 @@
 #!/usr/bin/env bun
 import { env } from "bun";
+import { initializeDatabase } from "./db";
+import { saveHistory, getRecentHistory } from "./history";
 
 // Perplexity API configuration
 const PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions";
@@ -41,7 +43,7 @@ interface PerplexityResponse {
     completion_tokens: number;
     total_tokens: number;
   };
-  choices: Array<{ 
+  choices: Array<{
     index: number;
     message: {
       content: string;
@@ -49,7 +51,7 @@ interface PerplexityResponse {
     };
     finish_reason: string;
   }>;
-  search_results?: Array<{ 
+  search_results?: Array<{
     title: string;
     url: string;
     date?: string;
@@ -67,16 +69,21 @@ function parseOptions(args: string[]): {
   const queryParts: string[] = [];
 
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--model" && args[i + 1]) {
-      const m = args[++i].toLowerCase() as ModelKey;
+    const arg = args[i];
+    const nextArg = args[i + 1];
+
+    if (arg === "--model" && nextArg) {
+      const m = nextArg.toLowerCase() as ModelKey;
       if (m in MODELS) model = m;
-    } else if (args[i] === "--recent" && args[i + 1]) {
-      const r = args[++i].toLowerCase();
+      i++; // Skip next arg since we consumed it
+    } else if (arg === "--recent" && nextArg) {
+      const r = nextArg.toLowerCase();
       if (["day", "week", "month", "year"].includes(r)) {
         recent = r as "day" | "week" | "month" | "year";
       }
-    } else {
-      queryParts.push(args[i]);
+      i++; // Skip next arg since we consumed it
+    } else if (arg) {
+      queryParts.push(arg);
     }
   }
 
@@ -134,38 +141,70 @@ function formatCitations(
   return `\n\n📚 **Sources:**\n${citations}`;
 }
 
-async function runRequest(apiKey: string, request: PerplexityRequest, label: string) {
-    console.log(`\n⏳ ${label}...`);
-    const start = performance.now();
-    
-    const result = await callPerplexityAPI(apiKey, request);
-    const end = performance.now();
-    const duration = ((end - start) / 1000).toFixed(2);
+async function runRequest(
+  apiKey: string,
+  request: PerplexityRequest,
+  label: string,
+  command: string,
+  query: string,
+) {
+  console.log(`\n⏳ ${label}...`);
+  const start = performance.now();
 
-    if (result.success && result.data) {
-        const content = result.data.choices[0]?.message?.content || "No response";
-        const citations = formatCitations(result.data.search_results);
-        const tokens = result.data.usage;
+  const result = await callPerplexityAPI(apiKey, request);
+  const end = performance.now();
+  const durationSeconds = (end - start) / 1000;
+  const duration = durationSeconds.toFixed(2);
 
-        console.log("\n" + "=".repeat(50));
-        console.log(content);
-        console.log("=".repeat(50));
-        if (citations) console.log(citations);
-        
-        console.log(`\n📊 Stats: ${tokens.total_tokens} tokens (${tokens.prompt_tokens} prompt + ${tokens.completion_tokens} completion) | ⏱️  ${duration}s`);
-    } else {
-        console.error(`\n❌ Error: ${result.error}`);
-        process.exit(1);
+  if (result.success && result.data) {
+    const content = result.data.choices[0]?.message?.content || "No response";
+    const citations = formatCitations(result.data.search_results);
+    const tokens = result.data.usage;
+
+    console.log("\n" + "=".repeat(50));
+    console.log(content);
+    console.log("=".repeat(50));
+    if (citations) console.log(citations);
+
+    console.log(
+      `\n📊 Stats: ${tokens.total_tokens} tokens (${tokens.prompt_tokens} prompt + ${tokens.completion_tokens} completion) | ⏱️  ${duration}s`,
+    );
+
+    // Save to history
+    try {
+      await saveHistory({
+        query,
+        command,
+        model: request.model,
+        response: content,
+        citations: result.data.search_results,
+        promptTokens: tokens.prompt_tokens,
+        completionTokens: tokens.completion_tokens,
+        totalTokens: tokens.total_tokens,
+        durationSeconds: parseFloat(duration), // Ensure it's a number
+      });
+      console.log("📁 Saved to history");
+    } catch (historyError) {
+      console.error("⚠️  Failed to save history:", historyError);
     }
+  } else {
+    console.error(`\n❌ Error: ${result.error}`);
+    process.exit(1);
+  }
 }
 
 async function main() {
+  // Initialize the database
+  initializeDatabase();
+
   const args = process.argv.slice(2);
   const apiKey = env.PERPLEXITY_API_KEY || process.env.PERPLEXITY_API_KEY;
 
   if (!apiKey) {
     console.error("❌ Error: PERPLEXITY_API_KEY environment variable not set.");
-    console.error("Get your API key from: https://www.perplexity.ai/settings/api");
+    console.error(
+      "Get your API key from: https://www.perplexity.ai/settings/api",
+    );
     process.exit(1);
   }
 
@@ -179,6 +218,7 @@ Usage:
   pplx academic <query>   Search academic sources
   pplx ask <question>     Ask a general question
   pplx code <question>    Get coding help
+  pplx history            View recent queries
 
 Options:
   --model <sonar|sonar-pro|sonar-deep|sonar-reasoning>
@@ -187,31 +227,51 @@ Options:
     process.exit(0);
   }
 
-  const command = args[0].toLowerCase();
+  const command = args[0]?.toLowerCase() ?? "";
   const restArgs = args.slice(1);
-  
+
   // Parse options for the command
   const { query, model, recent } = parseOptions(restArgs);
 
   // If command is not one of the specific ones, treat the whole args as a search query
-  if (!["search", "research", "academic", "ask", "code", "help"].includes(command)) {
-      // Re-parse including the first arg as part of the query
-      const opts = parseOptions(args);
-      await runRequest(apiKey, {
+  if (
+    ![
+      "search",
+      "research",
+      "academic",
+      "ask",
+      "code",
+      "help",
+      "history",
+    ].includes(command)
+  ) {
+    // Re-parse including the first arg as part of the query
+    const opts = parseOptions(args);
+    await runRequest(
+      apiKey,
+      {
         model: MODELS[opts.model || "sonar"],
         messages: [
-            { role: "system", content: "Be precise and helpful. Provide comprehensive answers with sources." },
-            { role: "user", content: opts.query }
+          {
+            role: "system",
+            content:
+              "Be precise and helpful. Provide comprehensive answers with sources.",
+          },
+          { role: "user", content: opts.query },
         ],
         max_tokens: 2048,
         temperature: 0.2,
-        search_recency_filter: opts.recent
-      }, "Searching");
-      return;
+        search_recency_filter: opts.recent,
+      },
+      "Searching",
+      "search",
+      opts.query,
+    );
+    return;
   }
 
   if (command === "help") {
-     console.log(`
+    console.log(`
 Perplexity CLI - AI Search & Research
 
 Usage:
@@ -220,11 +280,34 @@ Usage:
   pplx academic <query>   Search academic sources
   pplx ask <question>     Ask a general question
   pplx code <question>    Get coding help
+  pplx history            View recent queries
 
 Options:
   --model <sonar|sonar-pro|sonar-deep|sonar-reasoning>
   --recent <day|week|month|year>
 `);
+    return;
+  }
+
+  // Handle history command
+  if (command === "history") {
+    const entries = await getRecentHistory(10);
+    if (entries.length === 0) {
+      console.log(
+        "\n📭 No history found. Start making queries to build your history!",
+      );
+      return;
+    }
+
+    console.log("\n📜 Recent Queries:\n");
+    for (const entry of entries) {
+      const date = new Date(entry.timestamp).toLocaleString();
+      console.log(`  📌 [${entry.command}] ${entry.query}`);
+      console.log(
+        `     🕐 ${date} | 🔤 ${entry.totalTokens} tokens | ⏱️  ${entry.durationSeconds}s`,
+      );
+      console.log();
+    }
     return;
   }
 
@@ -236,61 +319,108 @@ Options:
   switch (command) {
     case "search":
     case "ask":
-      await runRequest(apiKey, {
-        model: MODELS[model || "sonar"],
-        messages: [
-            { role: "system", content: "Be precise and helpful. Provide comprehensive answers with sources." },
-            { role: "user", content: query }
-        ],
-        max_tokens: 2048,
-        temperature: 0.2,
-        search_recency_filter: recent
-      }, command === "ask" ? "Thinking" : "Searching");
+      await runRequest(
+        apiKey,
+        {
+          model: MODELS[model || "sonar"],
+          messages: [
+            {
+              role: "system",
+              content:
+                "Be precise and helpful. Provide comprehensive answers with sources.",
+            },
+            { role: "user", content: query },
+          ],
+          max_tokens: 2048,
+          temperature: 0.2,
+          search_recency_filter: recent,
+        },
+        command === "ask" ? "Thinking" : "Searching",
+        command,
+        query,
+      );
       break;
 
     case "research":
-      await runRequest(apiKey, {
-        model: MODELS[model || "sonar-deep"],
-        messages: [
-            { role: "system", content: "Be precise and helpful. Provide comprehensive answers with sources." },
-            { role: "user", content: query }
-        ],
-        max_tokens: 2048,
-        temperature: 0.2,
-        search_recency_filter: recent
-      }, "Deep Researching");
+      await runRequest(
+        apiKey,
+        {
+          model: MODELS[model || "sonar-deep"],
+          messages: [
+            {
+              role: "system",
+              content:
+                "Be precise and helpful. Provide comprehensive answers with sources.",
+            },
+            { role: "user", content: query },
+          ],
+          max_tokens: 2048,
+          temperature: 0.2,
+          search_recency_filter: recent,
+        },
+        "Deep Researching",
+        "research",
+        query,
+      );
       break;
 
     case "academic":
-        await runRequest(apiKey, {
-            model: MODELS[model || "sonar-pro"],
-            messages: [
-                { role: "system", content: "You are a research assistant. Focus on peer-reviewed academic sources and scholarly publications. Cite your sources properly." },
-                { role: "user", content: query }
-            ],
-            max_tokens: 2048,
-            temperature: 0.1,
-            search_mode: "academic",
-            search_recency_filter: recent
-        }, "Academic Search");
-        break;
+      await runRequest(
+        apiKey,
+        {
+          model: MODELS[model || "sonar-pro"],
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a research assistant. Focus on peer-reviewed academic sources and scholarly publications. Cite your sources properly.",
+            },
+            { role: "user", content: query },
+          ],
+          max_tokens: 2048,
+          temperature: 0.1,
+          search_mode: "academic",
+          search_recency_filter: recent,
+        },
+        "Academic Search",
+        "academic",
+        query,
+      );
+      break;
 
     case "code":
-        await runRequest(apiKey, {
-            model: MODELS[model || "sonar-pro"],
-            messages: [
-                { role: "system", content: "You are an expert programmer. Provide clear, working code examples with explanations. Reference documentation and best practices." },
-                { role: "user", content: `Coding question: ${query}` }
-            ],
-            max_tokens: 4096,
-            temperature: 0.2,
-            search_domain_filter: ["stackoverflow.com", "github.com", "developer.mozilla.org", "docs.python.org", "nodejs.org", "typescriptlang.org"]
-        }, "Generating Code");
-        break;
+      await runRequest(
+        apiKey,
+        {
+          model: MODELS[model || "sonar-pro"],
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are an expert programmer. Provide clear, working code examples with explanations. Reference documentation and best practices.",
+            },
+            { role: "user", content: `Coding question: ${query}` },
+          ],
+          max_tokens: 4096,
+          temperature: 0.2,
+          search_domain_filter: [
+            "stackoverflow.com",
+            "github.com",
+            "developer.mozilla.org",
+            "docs.python.org",
+            "nodejs.org",
+            "typescriptlang.org",
+          ],
+        },
+        "Generating Code",
+        "code",
+        query,
+      );
+      break;
   }
 }
 
-main().catch(err => {
-    console.error(err);
-    process.exit(1);
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
 });

@@ -32,3 +32,15 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
+
+# SQLite database files
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# History records (markdown files are local only)
+history/records/
+
+# Binary files
+pplx
