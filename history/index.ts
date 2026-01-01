@@ -1,8 +1,43 @@
 import { db, getHistoryDir } from "../db";
 import { history, type NewHistoryEntry, type HistoryEntry } from "../db/schema";
-import { desc, like } from "drizzle-orm";
-import { writeFileSync, readdirSync, unlinkSync, rmSync } from "fs";
+import { desc, like, eq } from "drizzle-orm";
+import {
+  writeFileSync,
+  readdirSync,
+  unlinkSync,
+  readFileSync,
+  existsSync,
+} from "fs";
 import { join } from "path";
+
+/**
+ * Generate a short hash from an ID
+ * Uses base36 encoding with a prefix for readability
+ */
+export function generateHash(id: number): string {
+  // Combine ID with a simple encoding to create a short hash
+  const base36 = id.toString(36).padStart(4, "0");
+  return base36;
+}
+
+/**
+ * Parse a hash back to an ID
+ */
+export function parseHash(hash: string): number | null {
+  try {
+    const id = parseInt(hash, 36);
+    return isNaN(id) ? null : id;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * History entry with hash
+ */
+export interface HistoryEntryWithHash extends HistoryEntry {
+  hash: string;
+}
 
 interface SaveHistoryParams {
   query: string;
@@ -163,4 +198,77 @@ export async function clearHistory(): Promise<void> {
   } catch (error) {
     console.error("Failed to clear history files:", error);
   }
+}
+
+/**
+ * Get history entry by hash
+ */
+export async function getHistoryByHash(
+  hash: string,
+): Promise<HistoryEntry | null> {
+  const id = parseHash(hash);
+  if (id === null) return null;
+
+  const result = await db.select().from(history).where(eq(history.id, id));
+  return result[0] || null;
+}
+
+/**
+ * Get the markdown file path for a history entry
+ * Finds the file by matching timestamp and query
+ */
+export function getMarkdownFilePath(entry: HistoryEntry): string | null {
+  const historyDir = getHistoryDir();
+  const timestamp = new Date(entry.timestamp);
+  const expectedFilename = generateFilename(entry.query, timestamp);
+  const filepath = join(historyDir, expectedFilename);
+
+  if (existsSync(filepath)) {
+    return filepath;
+  }
+
+  // Fallback: search for files with matching date/time prefix
+  try {
+    const files = readdirSync(historyDir);
+    const datePrefix = timestamp.toISOString().slice(0, 10); // YYYY-MM-DD
+    const timePrefix = timestamp.toISOString().slice(11, 19).replace(/:/g, "-"); // HH-MM-SS
+    const prefix = `${datePrefix}_${timePrefix}`;
+
+    for (const file of files) {
+      if (file.startsWith(prefix) && file.endsWith(".md")) {
+        return join(historyDir, file);
+      }
+    }
+  } catch {
+    // Directory doesn't exist or can't be read
+  }
+
+  return null;
+}
+
+/**
+ * Get markdown content for a history entry
+ */
+export function getMarkdownContent(entry: HistoryEntry): string | null {
+  const filepath = getMarkdownFilePath(entry);
+  if (!filepath) return null;
+
+  try {
+    return readFileSync(filepath, "utf-8");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get recent history entries with hashes
+ */
+export async function getRecentHistoryWithHashes(
+  limit = 10,
+): Promise<HistoryEntryWithHash[]> {
+  const entries = await getRecentHistory(limit);
+  return entries.map((entry) => ({
+    ...entry,
+    hash: generateHash(entry.id),
+  }));
 }

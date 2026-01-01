@@ -1,7 +1,15 @@
 #!/usr/bin/env bun
 import { env } from "bun";
 import { initializeDatabase } from "./db";
-import { saveHistory, getRecentHistory, clearHistory } from "./history";
+import {
+  saveHistory,
+  getRecentHistoryWithHashes,
+  clearHistory,
+  getHistoryByHash,
+  getMarkdownContent,
+  getMarkdownFilePath,
+  generateHash,
+} from "./history";
 import pkg from "./package.json";
 
 // Perplexity API configuration
@@ -207,7 +215,8 @@ Commands:
   academic <query>        Search academic sources
   ask <question>          Ask a general question
   code <question>         Get coding help
-  history                 View recent queries
+  history                 View recent queries (shows hash for each entry)
+  history view <hash>     View full markdown of a specific query
   clear-history           Clear all history
   help                    Show this help message
 
@@ -221,6 +230,7 @@ Examples:
   pplx search "latest ai news" --recent week
   pplx research "quantum computing advances" --model sonar-deep
   pplx code "how to center a div"
+  pplx history view 1     View history entry with hash '1'
 `);
 }
 
@@ -307,7 +317,44 @@ async function main() {
 
   // Handle history command
   if (command === "history") {
-    const entries = await getRecentHistory(10);
+    // Check for subcommand: pplx history view <hash>
+    const subCommand = restArgs[0]?.toLowerCase();
+
+    if (subCommand === "view") {
+      const hash = restArgs[1];
+      if (!hash) {
+        console.error(
+          "❌ Error: Please provide a hash. Usage: pplx history view <hash>",
+        );
+        process.exit(1);
+      }
+
+      const entry = await getHistoryByHash(hash);
+      if (!entry) {
+        console.error(`❌ Error: No history entry found with hash '${hash}'`);
+        process.exit(1);
+      }
+
+      const markdown = getMarkdownContent(entry);
+      if (markdown) {
+        console.log(markdown);
+      } else {
+        // Fallback: display from database
+        console.log(`# ${entry.query}\n`);
+        console.log(
+          `> **Query executed on ${new Date(entry.timestamp).toLocaleString()}**\n`,
+        );
+        console.log("---\n");
+        console.log("## 💬 Response\n");
+        console.log(entry.response);
+        console.log("\n---");
+        console.log(`\n📊 Model: ${entry.model} | Command: ${entry.command}`);
+      }
+      return;
+    }
+
+    // Default: list recent history
+    const entries = await getRecentHistoryWithHashes(10);
     if (entries.length === 0) {
       console.log(
         "\n📭 No history found. Start making queries to build your history!",
@@ -318,12 +365,19 @@ async function main() {
     console.log("\n📜 Recent Queries:\n");
     for (const entry of entries) {
       const date = new Date(entry.timestamp).toLocaleString();
-      console.log(`  📌 [${entry.command}] ${entry.query}`);
+      const filepath = getMarkdownFilePath(entry);
+      console.log(`  📌 [${entry.hash}] [${entry.command}] ${entry.query}`);
       console.log(
         `     🕐 ${date} | 🔤 ${entry.totalTokens} tokens | ⏱️  ${entry.durationSeconds}s`,
       );
+      if (filepath) {
+        console.log(`     📄 ${filepath}`);
+      }
       console.log();
     }
+    console.log(
+      "💡 Tip: Use 'pplx history view <hash>' to view full details\n",
+    );
     return;
   }
 
