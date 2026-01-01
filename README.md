@@ -132,12 +132,12 @@ bun run index.ts ask --model sonar-reasoning "Solve this logic puzzle: ..."
 
 ## History Storage
 
-All your queries are automatically saved locally in two formats:
+All your queries are automatically saved locally in `~/.pplx-cli/`:
 
-1. **SQLite Database** (`data/pplx-history.db`): Stores structured query data for fast retrieval
-2. **Markdown Files** (`history/records/`): Detailed markdown files for each query with full responses and citations
+1. **SQLite Database** (`~/.pplx-cli/history.db`): Stores structured query data for fast retrieval
+2. **Markdown Files** (`~/.pplx-cli/history/`): Detailed markdown files for each query with full responses and citations
 
-Both the database and markdown records are **gitignored by default** to keep your search history private.
+You can customize the storage location by setting the `PPLX_DATA_DIR` environment variable.
 
 ### Schema
 

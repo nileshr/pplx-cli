@@ -1,16 +1,8 @@
-import { db } from "../db";
+import { db, getHistoryDir } from "../db";
 import { history, type NewHistoryEntry, type HistoryEntry } from "../db/schema";
 import { desc, like } from "drizzle-orm";
-import { writeFile, mkdir } from "fs/promises";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-
-// History folder path - relative to project root
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const HISTORY_DIR = join(__dirname, "records");
-
-// Ensure history directory exists
-await mkdir(HISTORY_DIR, { recursive: true });
+import { writeFileSync } from "fs";
+import { join } from "path";
 
 interface SaveHistoryParams {
   query: string;
@@ -89,11 +81,12 @@ export async function saveHistory(
 ): Promise<HistoryEntry> {
   const timestamp = new Date();
   const filename = generateFilename(params.query, timestamp);
-  const filepath = join(HISTORY_DIR, filename);
+  const historyDir = getHistoryDir();
+  const filepath = join(historyDir, filename);
 
-  // Generate and write markdown file
+  // Generate and write markdown file (use sync to avoid issues)
   const markdown = generateMarkdown(params, timestamp);
-  await writeFile(filepath, markdown, "utf-8");
+  writeFileSync(filepath, markdown, "utf-8");
 
   // Save to database
   const entry: NewHistoryEntry = {

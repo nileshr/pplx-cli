@@ -1,14 +1,28 @@
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { Database } from "bun:sqlite";
 import * as schema from "./schema";
-import { mkdir } from "fs/promises";
-import { dirname } from "path";
+import { mkdirSync, existsSync } from "fs";
+import { join } from "path";
+import { homedir } from "os";
 
-// Database file path
-const DB_PATH = new URL("../data/pplx-history.db", import.meta.url).pathname;
+// Get the data directory - use ~/.pplx-cli for compiled binary compatibility
+function getDataDir(): string {
+  // Allow override via environment variable
+  if (process.env.PPLX_DATA_DIR) {
+    return process.env.PPLX_DATA_DIR;
+  }
 
-// Ensure the data directory exists
-await mkdir(dirname(DB_PATH), { recursive: true });
+  // Use ~/.pplx-cli as the default data directory
+  return join(homedir(), ".pplx-cli");
+}
+
+const DATA_DIR = getDataDir();
+const DB_PATH = join(DATA_DIR, "history.db");
+
+// Ensure the data directory exists (sync to avoid issues with top-level await in binary)
+if (!existsSync(DATA_DIR)) {
+  mkdirSync(DATA_DIR, { recursive: true });
+}
 
 // Initialize SQLite database with Bun's native SQLite
 const sqlite = new Database(DB_PATH, { create: true });
@@ -44,5 +58,14 @@ export function initializeDatabase() {
   `);
 }
 
+// Export the data directory path for use by history module
+export function getHistoryDir(): string {
+  const historyDir = join(DATA_DIR, "history");
+  if (!existsSync(historyDir)) {
+    mkdirSync(historyDir, { recursive: true });
+  }
+  return historyDir;
+}
+
 // Export for direct access if needed
-export { sqlite };
+export { sqlite, DATA_DIR };
