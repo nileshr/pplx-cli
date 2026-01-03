@@ -20,6 +20,6 @@
   },
   "scripts": {
     "build": "bun build ./index.ts --compile --outfile pplx",
-    "release": "bun run build && sudo cp pplx /usr/local/bin/"
+    "install:local": "bun run build && sudo cp pplx /usr/local/bin/"
   }
 }
