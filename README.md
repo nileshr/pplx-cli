@@ -23,20 +23,18 @@ If you are using this CLI within an AI agent ecosystem (like a coding assistant 
 
 Create an `AGENTS.md` file in your project root with content similar to this:
 
-\`\`\`markdown
+```markdown
 # Perplexity CLI (pplx) Tool Instructions
 
 This project includes the \`pplx\` CLI tool for performing web searches and deep research.
 
 ## Capability
-The \`pplx\` tool allows you to search the web, perform deep research, and find code examples using the Perplexity API.
+The `pplx` tool allows you to search the web, perform deep research, and find code examples using the Perplexity API.
 
 ## Usage
 Execute the tool using the command line:
 
-\`\`\`bash
 pplx <command> "<query>"
-\`\`\`
 
 ## Commands
 - \`pplx search "query"\`: Standard web search. Use for quick answers and general info.
@@ -48,7 +46,8 @@ pplx <command> "<query>"
 1. **Prefer \`research\`**: When asked to "investigate", "research", or "find out details" about a broad topic, always use the \`research\` command.
 2. **Use Quotes**: Always wrap your query in double quotes.
 3. **Check Output**: The tool writes the full answer to stdout. You can capture this output to answer the user's question.
-\`\`\`
+4. Use `pplx help` for more info
+```
 
 ## Prerequisites
 
