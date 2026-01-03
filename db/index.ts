@@ -66,6 +66,3 @@ export function getHistoryDir(): string {
   }
   return historyDir;
 }
-
-// Export for direct access if needed
-export { sqlite, DATA_DIR };

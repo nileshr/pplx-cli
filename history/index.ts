@@ -23,7 +23,7 @@ export function generateHash(id: number): string {
 /**
  * Parse a hash back to an ID
  */
-export function parseHash(hash: string): number | null {
+function parseHash(hash: string): number | null {
   try {
     const id = parseInt(hash, 36);
     return isNaN(id) ? null : id;
@@ -150,7 +150,7 @@ export async function saveHistory(
 /**
  * Get recent history entries
  */
-export async function getRecentHistory(limit = 10): Promise<HistoryEntry[]> {
+async function getRecentHistory(limit = 10): Promise<HistoryEntry[]> {
   return db
     .select()
     .from(history)
@@ -158,26 +158,6 @@ export async function getRecentHistory(limit = 10): Promise<HistoryEntry[]> {
     .limit(limit);
 }
 
-/**
- * Search history by query text
- */
-export async function searchHistory(
-  searchTerm: string,
-): Promise<HistoryEntry[]> {
-  return db
-    .select()
-    .from(history)
-    .where(like(history.query, `%${searchTerm}%`))
-    .orderBy(desc(history.timestamp))
-    .limit(50);
-}
-
-/**
- * Get all history entries
- */
-export async function getAllHistory(): Promise<HistoryEntry[]> {
-  return db.select().from(history).orderBy(desc(history.timestamp));
-}
 
 /**
  * Clear all history entries and files
