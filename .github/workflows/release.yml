@@ -11,8 +11,52 @@ permissions:
   pull-requests: write
 
 jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: bun-linux-x64
+            artifact: pplx-linux-x64
+          - os: ubuntu-latest
+            target: bun-linux-arm64
+            artifact: pplx-linux-arm64
+          - os: macos-latest
+            target: bun-darwin-x64
+            artifact: pplx-darwin-x64
+          - os: macos-latest
+            target: bun-darwin-arm64
+            artifact: pplx-darwin-arm64
+          - os: windows-latest
+            target: bun-windows-x64
+            artifact: pplx-windows-x64.exe
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build binary
+        run: bun build ./index.ts --compile --target=${{ matrix.target }} --outfile dist/${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+          retention-days: 1
+
   release:
     name: Release
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -21,15 +65,27 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
       - name: Install dependencies
         run: bun install
 
-      - name: Build
-        run: bun build ./index.ts --compile --outfile pplx-linux-x64
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -la dist/
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum * > checksums.txt
+          cat checksums.txt
 
       - name: Release
         env:
