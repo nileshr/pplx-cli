@@ -5,8 +5,11 @@
   "type": "module",
   "private": true,
   "devDependencies": {
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.2",
     "@types/bun": "latest",
-    "drizzle-kit": "^0.31.8"
+    "drizzle-kit": "^0.31.8",
+    "semantic-release": "^25.0.2"
   },
   "peerDependencies": {
     "typescript": "^5"
