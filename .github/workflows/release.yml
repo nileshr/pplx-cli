@@ -19,10 +19,10 @@ jobs:
         include:
           - os: ubuntu-latest
             target: bun-linux-x64
-            artifact: pplx-linux-x64
+            artifact: pplx-linux-glibc-x64
           - os: ubuntu-latest
             target: bun-linux-arm64
-            artifact: pplx-linux-arm64
+            artifact: pplx-linux-glibc-arm64
           - os: macos-latest
             target: bun-darwin-x64
             artifact: pplx-darwin-x64

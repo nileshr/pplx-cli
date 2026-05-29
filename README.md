@@ -96,6 +96,8 @@ bun run build
 
 This will create a `pplx` executable in the current directory. You can move this to your `PATH` for easy access:
 
+> **Linux release binaries:** The prebuilt Linux assets published on GitHub are Bun `bun-linux-*` builds and are glibc-linked. They are named `pplx-linux-glibc-x64` and `pplx-linux-glibc-arm64` so users on musl-based distributions (for example Alpine) or Android/Bionic environments can identify the libc requirement before downloading. Musl, static, and Android/Bionic binaries are not currently published.
+
 ```bash
 # Move to a directory in your PATH, e.g., /usr/local/bin
 mv pplx /usr/local/bin/
